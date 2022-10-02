@@ -33,6 +33,12 @@ struct Mem
         // Assert here Address is < MAX_MEM;
         return Data[Address];
     }
+
+    /** Write 1 byte */
+    Byte& operator[] (u32 Address) {
+        // Asser here Address is < MAX_MEM
+        return Data[Address];
+    }
 };
 
 
@@ -77,10 +83,24 @@ struct CPU
         Cycles--;
         return Data;
     }
+    
+    // Read Byte of data at address.
+    Byte ReadByte(u32& Cycles, Mem& memory, Byte Address) {
+        Byte Data = memory[Address];
+        Cycles--;
+        return Data;
+    }
 
     // Opcodes
     static constexpr Byte
-        INSTRUCTION_LDA_IM = 0xA9;
+        INSTRUCTION_LDA_IM = 0xA9,
+        INSTRUCTION_LDA_ZP = 0xA5;
+        INSTRUCTION_LDA_ZPX = 0xB5;
+
+    void LDASetStatus() {
+        Z = (A == 0);
+        N = (A & 0b10000000 > 0);
+    }
 
     void Execute (u32 Cycles, Mem& memory) {
         while (Cycles > 0) {
@@ -89,13 +109,23 @@ struct CPU
             switch (Instruction) {
                 case INSTRUCTION_LDA_IM: 
                 {
-                    Byte Value = 
-                        FetchByte( Cycles, memory );
+                    Byte Value = FetchByte(Cycles, memory);
                     A = Value;
-                    Z = (A == 0);
-                    N = (A & 0b10000000) > 0;
+                    LDASetStatus();
+                } break;
+                case INSTRUCTION_LDA_ZP:
+                {
+                    Byte ZeroPageAddress = FetchByte(Cycles, memory);
+                    A = ReadByte(Cycles, memory, ZeroPageAddress);
+                    LDASetStatus();
+                } break;
+                case INSTRUCTION_LDA_ZPX:
+
+                default:
+                {
+                    printf("Instruciton not handled %d", Instruction);
+                    break;
                 }
-                break;
             }
         }
     }
@@ -107,7 +137,12 @@ int main()
     CPU cpu;
 
     cpu.Reset( mem );
-    cpu.Execute( 2, mem );
+    mem[0xFFFC] = CPU::INSTRUCTION_LDA_ZP;
+    mem[0xFFFD] = 0x42;
+    mem[0x0042] = 0x84;
+
+    // The cycles needed to get all instructions ran.
+    cpu.Execute( 3, mem );
 
     return 0;
 }
